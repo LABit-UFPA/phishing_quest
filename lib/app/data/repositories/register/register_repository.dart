@@ -2,7 +2,7 @@ import 'package:phishing_quest/app/data/repositories/register/register_repositor
 import 'package:phishing_quest/app/data/repositories/request_repository.dart';
 
 final class RegisterRepository extends RequestRepository implements IRegisterRepository {
-  static const String registerAuth = '/users';
+  static const String registerAuth = '/users/register';
 
   @override
   Future register(
