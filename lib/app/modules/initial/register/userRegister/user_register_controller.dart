@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:phishing_quest/app/data/controllers/base_controller.dart';
 import 'package:phishing_quest/app/data/repositories/register/register_repository.dart';
-import 'package:phishing_quest/app/data/services/auth_service.dart';
 import 'package:phishing_quest/app/global_ui/components/toast.dart';
 import 'package:phishing_quest/app/modules/initial/login/login_module.dart';
 
@@ -59,20 +58,15 @@ class UserRegisterController extends BaseController {
           return Toast.error('Não foi possível realizar o cadastro', register.reason ?? 'Tente novamente', delayed: true);
         }
 
-        // Auto-login after registration
-        final authService = Get.find<AuthService>();
-        await authService.login(
-          token: 'mock-token-${DateTime.now().millisecondsSinceEpoch}',
-          userData: {
-            'id': 'u-${DateTime.now().millisecondsSinceEpoch}',
-            'username': usernameController.text,
-            'email': emailController.text,
-            'role': 'player',
-            'score': 0,
-          },
-        );
-
-        Get.offAllNamed('/main');
+        // O backend ainda não emite token no cadastro (ver issue #10 do
+        // repo phishing-quest-api). Até que exista um token real para
+        // autenticar, redirecionamos ao login em vez de fabricar uma
+        // sessão fake — evita persistir um usuário "logado" sem
+        // credencial de verdade.
+        setLoading(false);
+        Toast.success('Cadastro realizado', 'Faça login para continuar', delayed: true);
+        Get.offAllNamed(LoginModule.path);
+        return;
       } catch (_) {
         Toast.error('Erro', 'Não foi possível realizar o cadastro');
       }
