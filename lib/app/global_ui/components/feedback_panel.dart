@@ -3,7 +3,10 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phishing_quest/app/global_ui/app_theme.dart';
 import 'package:phishing_quest/app/global_ui/components/rating_stars.dart';
 
+/// Avaliacao da justificativa pelo modelo de linguagem: nota de 0 a 5,
+/// comentario, pontos fortes e pontos a melhorar.
 class FeedbackPanel extends StatefulWidget {
+  final String title;
   final int? aiRating;
   final String? feedback;
   final List<String>? strengths;
@@ -11,6 +14,7 @@ class FeedbackPanel extends StatefulWidget {
   final bool initiallyExpanded;
 
   const FeedbackPanel({
+    this.title = 'Avaliação da sua justificativa',
     this.aiRating,
     this.feedback,
     this.strengths,
@@ -78,13 +82,13 @@ class _FeedbackPanelState extends State<FeedbackPanel> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Feedback da IA',
+                          widget.title,
                           style: AppTheme.textStyles.subTitle.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         if (widget.aiRating != null)
-                          RatingStars(rating: widget.aiRating!, starSize: 16.sp),
+                          RatingStars(rating: widget.aiRating!, starSize: 16.sp, showLabel: true),
                       ],
                     ),
                   ),

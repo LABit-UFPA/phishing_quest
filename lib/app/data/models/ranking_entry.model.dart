@@ -1,33 +1,42 @@
+/// Linha do ranking (GET /rankings): pontos do quiz.
 class RankingEntryModel {
   final String userId;
   final String username;
   final int score;
   final int position;
-  final String? avatarUrl;
-  final int totalAnswered;
-  final int totalCorrect;
 
   RankingEntryModel({
     required this.userId,
     required this.username,
     required this.score,
     required this.position,
-    this.avatarUrl,
-    this.totalAnswered = 0,
-    this.totalCorrect = 0,
   });
-
-  double get accuracy => totalAnswered > 0 ? (totalCorrect / totalAnswered) * 100 : 0;
 
   factory RankingEntryModel.fromJson(Map<String, dynamic> json) {
     return RankingEntryModel(
-      userId: json['user_id'] ?? json['userId'] ?? '',
+      userId: json['userId'] ?? '',
       username: json['username'] ?? '',
-      score: json['score'] ?? 0,
+      score: json['totalScore'] ?? 0,
       position: json['position'] ?? 0,
-      avatarUrl: json['avatar_url'],
-      totalAnswered: json['total_answered'] ?? 0,
-      totalCorrect: json['total_correct'] ?? 0,
+    );
+  }
+}
+
+/// Posicao do usuario no ranking global e no da turma (GET /me/ranking).
+class MyRankingModel {
+  final RankingEntryModel? global;
+  final RankingEntryModel? cohort;
+  final String? cohortId;
+
+  MyRankingModel({this.global, this.cohort, this.cohortId});
+
+  factory MyRankingModel.fromJson(Map<String, dynamic> json) {
+    final global = json['global'];
+    final cohort = json['cohort'];
+    return MyRankingModel(
+      global: global is Map<String, dynamic> ? RankingEntryModel.fromJson(global) : null,
+      cohort: cohort is Map<String, dynamic> ? RankingEntryModel.fromJson(cohort) : null,
+      cohortId: json['cohortId'],
     );
   }
 }

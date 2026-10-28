@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:phishing_quest/app/data/enumerators/difficulty.enum.dart';
 import 'package:phishing_quest/app/global_ui/app_theme.dart';
-import 'package:phishing_quest/app/global_ui/components/difficulty_chip.dart';
 import 'package:phishing_quest/app/global_ui/components/game_card.dart';
 import 'package:phishing_quest/app/modules/play/play_controller.dart';
 
@@ -95,7 +93,7 @@ class PlayView extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  'Responda perguntas de múltipla escolha',
+                                  'Até 5 questões de múltipla escolha por partida',
                                   style: AppTheme.textStyles.label.copyWith(
                                     color: AppTheme.colors.textSecondary,
                                   ),
@@ -174,7 +172,7 @@ class PlayView extends StatelessWidget {
                   }),
                 ),
                 SizedBox(height: 28.h),
-                // Show category/difficulty selection only if Quiz mode is selected
+                // Show category selection only if Quiz mode is selected
                 Obx(() {
                   if (controller.selectedMode.value != GameMode.quiz) {
                     return const SizedBox.shrink();
@@ -182,34 +180,6 @@ class PlayView extends StatelessWidget {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Difficulty Selection
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 20.w),
-                        child: Text(
-                          'Dificuldade',
-                          style: AppTheme.textStyles.subTitle.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 12.h),
-                      FadeInLeft(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16.w),
-                          child: Wrap(
-                            spacing: 10.w,
-                            runSpacing: 10.h,
-                            children: Difficulty.values.map((difficulty) {
-                              return Obx(() => DifficultyChip(
-                                difficulty: difficulty,
-                                isSelected: controller.selectedDifficulty.value == difficulty,
-                                onTap: () => controller.selectDifficulty(difficulty),
-                              ));
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 28.h),
                       // Categories
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 20.w),
@@ -296,7 +266,7 @@ class PlayView extends StatelessWidget {
                   child: Obx(() {
                     final isEmailMode = controller.selectedMode.value == GameMode.emailSim;
                     final hasSelection = isEmailMode || controller.selectedCategory.value != null;
-                    final buttonText = isEmailMode ? 'Iniciar Simulação' : 'Iniciar Partida';
+                    final buttonText = isEmailMode ? 'Abrir caixa de entrada' : 'Iniciar partida';
                     
                     return GestureDetector(
                       onTap: hasSelection ? controller.startGame : null,

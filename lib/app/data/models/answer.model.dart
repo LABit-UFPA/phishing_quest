@@ -1,29 +1,15 @@
+/// Alternativa de uma questao (GET /questions/:id/answers). A API nao
+/// manda o gabarito: o acerto vem de POST /game/answer.
 class AnswerModel {
   final String id;
-  final String questionId;
   final String answerText;
-  final bool isCorrect;
 
-  AnswerModel({
-    required this.id,
-    required this.questionId,
-    required this.answerText,
-    required this.isCorrect,
-  });
+  AnswerModel({required this.id, required this.answerText});
 
   factory AnswerModel.fromJson(Map<String, dynamic> json) {
     return AnswerModel(
       id: json['id'] ?? '',
-      questionId: json['questionId'] ?? json['question_id'] ?? '',
-      answerText: json['answerText'] ?? json['answer_text'] ?? '',
-      isCorrect: json['isCorrect'] ?? json['is_correct'] ?? false,
+      answerText: json['answerText'] ?? '',
     );
   }
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'questionId': questionId,
-    'answerText': answerText,
-    'isCorrect': isCorrect,
-  };
 }

@@ -1,22 +1,19 @@
 import 'package:phishing_quest/app/data/enumerators/user_role.enum.dart';
 
+/// Usuario autenticado, no formato da resposta de POST /users/login.
 class UserModel {
   final String id;
   final String username;
   final String email;
   final UserRole role;
-  final int score;
-  final String? avatarUrl;
-  final DateTime? createdAt;
+  final int totalScore;
 
   UserModel({
     required this.id,
     required this.username,
     required this.email,
-    this.role = UserRole.player,
-    this.score = 0,
-    this.avatarUrl,
-    this.createdAt,
+    this.role = UserRole.participant,
+    this.totalScore = 0,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -24,22 +21,26 @@ class UserModel {
       id: json['id'] ?? '',
       username: json['username'] ?? '',
       email: json['email'] ?? '',
-      role: UserRole.fromString(json['role'] ?? 'player'),
-      score: json['score'] ?? 0,
-      avatarUrl: json['avatar_url'],
-      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']) : null,
+      role: UserRole.fromString(json['role']),
+      totalScore: json['totalScore'] ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'username': username,
-    'email': email,
-    'role': role.name,
-    'score': score,
-    'avatar_url': avatarUrl,
-    'created_at': createdAt?.toIso8601String(),
-  };
+        'id': id,
+        'username': username,
+        'email': email,
+        'role': role.name,
+        'totalScore': totalScore,
+      };
 
-  bool get isAdmin => role == UserRole.admin;
+  UserModel copyWith({int? totalScore}) => UserModel(
+        id: id,
+        username: username,
+        email: email,
+        role: role,
+        totalScore: totalScore ?? this.totalScore,
+      );
+
+  bool get canCurate => role.canCurate;
 }

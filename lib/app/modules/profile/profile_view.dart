@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:phishing_quest/app/data/models/participant.model.dart';
 import 'package:phishing_quest/app/data/models/user_stats.model.dart';
 import 'package:phishing_quest/app/global_ui/app_theme.dart';
 import 'package:phishing_quest/app/global_ui/components/game_card.dart';
@@ -51,7 +51,7 @@ class ProfileView extends StatelessWidget {
                             radius: 40.r,
                             backgroundColor: AppTheme.colors.primary.withOpacity(0.2),
                             child: Text(
-                              (user?.username ?? 'U').substring(0, 1).toUpperCase(),
+                              (user?.username.isNotEmpty ?? false) ? user!.username[0].toUpperCase() : 'U',
                               style: TextStyle(
                                 color: AppTheme.colors.primary,
                                 fontWeight: FontWeight.bold,
@@ -62,81 +62,59 @@ class ProfileView extends StatelessWidget {
                           SizedBox(height: 12.h),
                           Text(
                             user?.username ?? 'Jogador',
-                            style: AppTheme.textStyles.title.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: AppTheme.textStyles.title.copyWith(fontWeight: FontWeight.w700),
                           ),
                           SizedBox(height: 4.h),
                           Text(
                             user?.email ?? '',
-                            style: AppTheme.textStyles.label.copyWith(
-                              color: AppTheme.colors.textSecondary,
-                            ),
+                            style: AppTheme.textStyles.label.copyWith(color: AppTheme.colors.textSecondary),
                           ),
+                          if (user != null && user.canCurate) ...[
+                            SizedBox(height: 6.h),
+                            Text(
+                              user.role.label,
+                              style: AppTheme.textStyles.prepreLabel.copyWith(color: AppTheme.colors.accent),
+                            ),
+                          ],
                           SizedBox(height: 16.h),
-                          ScoreBadge(
-                            score: user?.score ?? 0,
-                            size: 80.r,
+                          ScoreBadge(score: user?.totalScore ?? 0, size: 80.r),
+                          SizedBox(height: 4.h),
+                          Text(
+                            'pontos no ranking',
+                            style: AppTheme.textStyles.prepreLabel.copyWith(color: AppTheme.colors.textMuted),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  SizedBox(height: 16.h),
-                  // Quick Stats
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 100),
-                    child: Row(
-                      children: [
-                        _QuickStat(
-                          icon: Icons.quiz_outlined,
-                          value: '${stats?.totalAnswered ?? 0}',
-                          label: 'Respondidas',
-                          color: AppTheme.colors.primary,
-                        ),
-                        SizedBox(width: 10.w),
-                        _QuickStat(
-                          icon: Icons.check_circle_outline,
-                          value: '${stats?.totalCorrect ?? 0}',
-                          label: 'Acertos',
-                          color: AppTheme.colors.success,
-                        ),
-                        SizedBox(width: 10.w),
-                        _QuickStat(
-                          icon: Icons.star_border,
-                          value: (stats?.averageAiRating ?? 0).toStringAsFixed(1),
-                          label: 'Nota IA',
-                          color: AppTheme.colors.accent,
-                        ),
-                      ],
+                  if (controller.loadError.value != null) ...[
+                    SizedBox(height: 12.h),
+                    Text(
+                      controller.loadError.value!,
+                      style: AppTheme.textStyles.label.copyWith(color: AppTheme.colors.error),
                     ),
-                  ),
+                  ],
                   if (stats != null) ...[
-                    SizedBox(height: 20.h),
-                    // Bar Chart by Difficulty
+                    SizedBox(height: 16.h),
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 100),
+                      child: _DetectionCard(stats: stats),
+                    ),
+                    SizedBox(height: 16.h),
                     FadeInUp(
                       delay: const Duration(milliseconds: 200),
-                      child: _DifficultyChart(stats: stats),
+                      child: _CueAccuracyCard(cues: stats.byCue),
                     ),
-                    SizedBox(height: 16.h),
-                    // Category Radar Chart
-                    if (stats.byCategory.isNotEmpty)
-                      FadeInUp(
-                        delay: const Duration(milliseconds: 300),
-                        child: _CategoryRadar(stats: stats),
-                      ),
-                    SizedBox(height: 16.h),
-                    // Score History Line Chart
-                    if (stats.scoreHistory.isNotEmpty)
-                      FadeInUp(
-                        delay: const Duration(milliseconds: 400),
-                        child: _ScoreHistoryChart(history: stats.scoreHistory),
-                      ),
                   ],
+                  SizedBox(height: 16.h),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 300),
+                    child: _ParticipationCard(controller: controller, participant: controller.participant),
+                  ),
                   SizedBox(height: 24.h),
                   // Logout
                   FadeInUp(
-                    delay: const Duration(milliseconds: 500),
+                    delay: const Duration(milliseconds: 400),
                     child: GestureDetector(
                       onTap: controller.logout,
                       child: Container(
@@ -170,127 +148,194 @@ class ProfileView extends StatelessWidget {
   }
 }
 
-// ── Quick Stat Card ──────────────────────────────────────────────────────────
-class _QuickStat extends StatelessWidget {
-  final IconData icon;
+// ── Deteccao de sinal ─────────────────────────────────────────────────────────
+class _DetectionCard extends StatelessWidget {
+  final UserStatsModel stats;
+  const _DetectionCard({required this.stats});
+
+  String _percent(double value) => '${(value * 100).round()}%';
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Desempenho na caixa de entrada',
+            style: AppTheme.textStyles.subTitle.copyWith(fontWeight: FontWeight.w600),
+          ),
+          SizedBox(height: 4.h),
+          Text(
+            '${stats.totalAttempts} decisões',
+            style: AppTheme.textStyles.label.copyWith(color: AppTheme.colors.textMuted),
+          ),
+          SizedBox(height: 16.h),
+          Row(
+            children: [
+              Expanded(
+                child: _Metric(
+                  value: stats.dPrime.toStringAsFixed(2),
+                  label: "Sensibilidade (d')",
+                  hint: 'Quanto maior, melhor você separa phishing de legítimo',
+                  color: AppTheme.colors.primary,
+                ),
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: _Metric(
+                  value: stats.criterion.toStringAsFixed(2),
+                  label: 'Critério (c)',
+                  hint: stats.criterionReading,
+                  color: AppTheme.colors.accent,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          Row(
+            children: [
+              Expanded(child: _SmallMetric(value: _percent(stats.accuracy), label: 'Acurácia')),
+              Expanded(child: _SmallMetric(value: _percent(stats.hitRate), label: 'Acertos em phishing')),
+              Expanded(child: _SmallMetric(value: _percent(stats.falseAlarmRate), label: 'Falsos alarmes')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
   final String value;
   final String label;
+  final String hint;
   final Color color;
 
-  const _QuickStat({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
+  const _Metric({required this.value, required this.label, required this.hint, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: GameCard(
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24.sp),
-            SizedBox(height: 8.h),
-            Text(
-              value,
-              style: AppTheme.textStyles.title.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            Text(
-              label,
-              style: AppTheme.textStyles.label.copyWith(
-                color: AppTheme.colors.textSecondary,
-                fontSize: 10.sp,
-              ),
-            ),
-          ],
+    return Container(
+      padding: EdgeInsets.all(12.r),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value, style: AppTheme.textStyles.title.copyWith(color: color, fontWeight: FontWeight.w800)),
+          Text(label, style: AppTheme.textStyles.label.copyWith(fontWeight: FontWeight.w600)),
+          SizedBox(height: 4.h),
+          Text(
+            hint,
+            style: AppTheme.textStyles.prepreLabel.copyWith(color: AppTheme.colors.textMuted, height: 1.3),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SmallMetric extends StatelessWidget {
+  final String value;
+  final String label;
+
+  const _SmallMetric({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(value, style: AppTheme.textStyles.subTitle.copyWith(fontWeight: FontWeight.w700)),
+        Text(
+          label,
+          style: AppTheme.textStyles.prepreLabel.copyWith(color: AppTheme.colors.textSecondary),
+          textAlign: TextAlign.center,
         ),
-      ),
+      ],
     );
   }
 }
 
-// ── Difficulty Bar Chart ─────────────────────────────────────────────────────
-class _DifficultyChart extends StatelessWidget {
-  final UserStatsModel stats;
-  const _DifficultyChart({required this.stats});
+// ── Acuracia por pista ────────────────────────────────────────────────────────
+class _CueAccuracyCard extends StatelessWidget {
+  final List<CuePerformance> cues;
+  const _CueAccuracyCard({required this.cues});
 
   @override
   Widget build(BuildContext context) {
-    final difficulties = stats.byDifficulty.entries.toList();
+    final sorted = [...cues]..sort((a, b) => a.accuracy.compareTo(b.accuracy));
 
     return GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Desempenho por Dificuldade',
-            style: AppTheme.textStyles.subTitle.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            'Acurácia por pista',
+            style: AppTheme.textStyles.subTitle.copyWith(fontWeight: FontWeight.w600),
           ),
-          SizedBox(height: 16.h),
-          SizedBox(
-            height: 180.h,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: difficulties.isEmpty
-                    ? 10
-                    : difficulties
-                        .map((e) => e.value.total.toDouble())
-                        .reduce((a, b) => a > b ? a : b) * 1.3,
-                gridData: const FlGridData(show: false),
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        final labels = ['Fácil', 'Médio', 'Difícil'];
-                        if (value.toInt() < labels.length) {
-                          return Text(
-                            labels[value.toInt()],
-                            style: AppTheme.textStyles.label.copyWith(
-                              color: AppTheme.colors.textSecondary,
-                              fontSize: 10.sp,
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                  ),
-                ),
-                barGroups: difficulties.asMap().entries.map((entry) {
-                  final d = entry.value.value;
-                  final colors = [AppTheme.colors.success, AppTheme.colors.accent, AppTheme.colors.error];
-                  final color = entry.key < colors.length ? colors[entry.key] : AppTheme.colors.primary;
+          SizedBox(height: 4.h),
+          Text(
+            'Mensagens com cada sinal de phishing que você julgou certo',
+            style: AppTheme.textStyles.label.copyWith(color: AppTheme.colors.textMuted),
+          ),
+          SizedBox(height: 14.h),
+          if (sorted.isEmpty)
+            Text(
+              'Avalie mensagens na caixa de entrada para ver seu desempenho por pista.',
+              style: AppTheme.textStyles.label.copyWith(color: AppTheme.colors.textSecondary),
+            )
+          else
+            ...sorted.map((cue) => _CueBar(cue: cue)),
+        ],
+      ),
+    );
+  }
+}
 
-                  return BarChartGroupData(
-                    x: entry.key,
-                    barRods: [
-                      BarChartRodData(
-                        toY: d.correct.toDouble(),
-                        color: color,
-                        width: 18.w,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(6.r)),
-                      ),
-                      BarChartRodData(
-                        toY: (d.total - d.correct).toDouble(),
-                        color: color.withOpacity(0.25),
-                        width: 18.w,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(6.r)),
-                      ),
-                    ],
-                  );
-                }).toList(),
+class _CueBar extends StatelessWidget {
+  final CuePerformance cue;
+  const _CueBar({required this.cue});
+
+  @override
+  Widget build(BuildContext context) {
+    final accuracy = cue.accuracy.clamp(0.0, 1.0);
+    final color = accuracy >= 0.75
+        ? AppTheme.colors.success
+        : accuracy >= 0.5
+            ? AppTheme.colors.accent
+            : AppTheme.colors.error;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: 12.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  cue.labelPt.isNotEmpty ? cue.labelPt : cue.cueCode,
+                  style: AppTheme.textStyles.label.copyWith(fontWeight: FontWeight.w600),
+                ),
               ),
+              Text(
+                '${(accuracy * 100).round()}% · ${cue.correct}/${cue.answered}',
+                style: AppTheme.textStyles.label.copyWith(color: AppTheme.colors.textSecondary),
+              ),
+            ],
+          ),
+          SizedBox(height: 6.h),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6.r),
+            child: LinearProgressIndicator(
+              value: accuracy,
+              minHeight: 8.h,
+              backgroundColor: AppTheme.colors.surfaceBorder,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
         ],
@@ -299,171 +344,93 @@ class _DifficultyChart extends StatelessWidget {
   }
 }
 
-// ── Category Radar ───────────────────────────────────────────────────────────
-class _CategoryRadar extends StatelessWidget {
-  final UserStatsModel stats;
-  const _CategoryRadar({required this.stats});
+// ── Participacao na pesquisa ──────────────────────────────────────────────────
+class _ParticipationCard extends StatelessWidget {
+  final ProfileController controller;
+  final ParticipantModel? participant;
+
+  const _ParticipationCard({required this.controller, required this.participant});
+
+  String _date(DateTime? value) {
+    if (value == null) return '';
+    final local = value.toLocal();
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final categories = stats.byCategory.entries.toList();
+    final active = participant?.active ?? false;
 
     return GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Habilidades por Categoria',
-            style: AppTheme.textStyles.subTitle.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            'Participação na pesquisa',
+            style: AppTheme.textStyles.subTitle.copyWith(fontWeight: FontWeight.w600),
           ),
-          SizedBox(height: 16.h),
-          SizedBox(
-            height: 220.h,
-            child: RadarChart(
-              RadarChartData(
-                radarShape: RadarShape.polygon,
-                radarBackgroundColor: Colors.transparent,
-                borderData: FlBorderData(show: false),
-                radarBorderData: BorderSide(
-                  color: AppTheme.colors.surfaceBorder,
-                  width: 1,
-                ),
-                gridBorderData: BorderSide(
-                  color: AppTheme.colors.surfaceBorder.withOpacity(0.5),
-                  width: 0.5,
-                ),
-                tickCount: 4,
-                tickBorderData: const BorderSide(color: Colors.transparent),
-                ticksTextStyle: const TextStyle(color: Colors.transparent),
-                getTitle: (index, angle) {
-                  if (index < categories.length) {
-                    return RadarChartTitle(
-                      text: categories[index].key,
-                      angle: 0,
-                    );
-                  }
-                  return const RadarChartTitle(text: '');
-                },
-                dataSets: [
-                  RadarDataSet(
-                    dataEntries: categories
-                        .map((e) => RadarEntry(
-                              value: e.value.total > 0
-                                  ? (e.value.correct / e.value.total * 100)
-                                  : 0,
-                            ))
-                        .toList(),
-                    fillColor: AppTheme.colors.primary.withOpacity(0.2),
-                    borderColor: AppTheme.colors.primary,
-                    borderWidth: 2,
-                    entryRadius: 3,
+          SizedBox(height: 8.h),
+          if (participant == null)
+            _line('Você ainda não aceitou participar. Sem isso, a caixa de entrada fica indisponível.')
+          else if (active) ...[
+            _line('Participando desde ${_date(participant!.consentedAt)}.'),
+            if (participant!.cohortName != null) _line('Turma: ${participant!.cohortName}'),
+            _line('Termo aceito: ${participant!.consentVersion}'),
+          ] else
+            _line('Consentimento retirado em ${_date(participant!.withdrawnAt)}. Suas decisões não estão sendo registradas.'),
+          SizedBox(height: 12.h),
+          if (active)
+            Obx(() => OutlinedButton(
+                  onPressed: controller.isWithdrawing.value ? null : () => _confirmWithdraw(context),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: AppTheme.colors.error.withOpacity(0.6)),
+                    minimumSize: Size(double.infinity, 44.h),
                   ),
-                ],
-                titleTextStyle: AppTheme.textStyles.label.copyWith(
-                  color: AppTheme.colors.textSecondary,
-                  fontSize: 10.sp,
-                ),
-                titlePositionPercentageOffset: 0.2,
+                  child: Text('Retirar consentimento', style: TextStyle(color: AppTheme.colors.error)),
+                ))
+          else
+            ElevatedButton(
+              onPressed: controller.participate,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.colors.primary,
+                minimumSize: Size(double.infinity, 44.h),
               ),
+              child: const Text('Participar da pesquisa', style: TextStyle(color: Colors.white)),
             ),
-          ),
         ],
       ),
     );
   }
-}
 
-// ── Score History Line Chart ─────────────────────────────────────────────────
-class _ScoreHistoryChart extends StatelessWidget {
-  final List<ScoreHistoryEntry> history;
-  const _ScoreHistoryChart({required this.history});
+  Widget _line(String text) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 4.h),
+      child: Text(text, style: AppTheme.textStyles.label.copyWith(color: AppTheme.colors.textSecondary, height: 1.4)),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return GameCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Evolução da Pontuação',
-            style: AppTheme.textStyles.subTitle.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+  void _confirmWithdraw(BuildContext context) {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: AppTheme.colors.backgroundCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        title: Text('Retirar consentimento?', style: AppTheme.textStyles.subTitle),
+        content: Text(
+          'Suas próximas decisões na caixa de entrada não serão registradas e seus dados saem da exportação '
+          'usada nas análises. Você ainda pode jogar o quiz e pode voltar a participar depois.',
+          style: AppTheme.textStyles.posLabel.copyWith(color: AppTheme.colors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('Cancelar', style: TextStyle(color: AppTheme.colors.textSecondary)),
           ),
-          SizedBox(height: 16.h),
-          SizedBox(
-            height: 180.h,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 50,
-                  getDrawingHorizontalLine: (value) => FlLine(
-                    color: AppTheme.colors.surfaceBorder.withOpacity(0.3),
-                    strokeWidth: 1,
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 1,
-                      getTitlesWidget: (value, meta) {
-                        final i = value.toInt();
-                        if (i >= 0 && i < history.length) {
-                          return Text(
-                            '${history[i].date.day}/${history[i].date.month}',
-                            style: TextStyle(
-                              color: AppTheme.colors.textMuted,
-                              fontSize: 9.sp,
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                  ),
-                ),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: history.asMap().entries.map((e) {
-                      return FlSpot(e.key.toDouble(), e.value.score.toDouble());
-                    }).toList(),
-                    isCurved: true,
-                    color: AppTheme.colors.primary,
-                    barWidth: 3,
-                    dotData: FlDotData(
-                      show: true,
-                      getDotPainter: (spot, percent, bar, index) =>
-                          FlDotCirclePainter(
-                        radius: 3,
-                        color: AppTheme.colors.primary,
-                        strokeWidth: 1.5,
-                        strokeColor: AppTheme.colors.backgroundCard,
-                      ),
-                    ),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          AppTheme.colors.primary.withOpacity(0.3),
-                          AppTheme.colors.primary.withOpacity(0.0),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              controller.withdrawConsent();
+            },
+            child: Text('Retirar', style: TextStyle(color: AppTheme.colors.error)),
           ),
         ],
       ),

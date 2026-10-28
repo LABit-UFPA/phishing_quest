@@ -1,9 +1,9 @@
 import 'package:get/get.dart';
-import 'package:phishing_quest/app/data/mock/mock_data.dart';
 import 'package:phishing_quest/app/data/models/category.model.dart';
 import 'package:phishing_quest/app/data/models/user_stats.model.dart';
 import 'package:phishing_quest/app/data/repositories/category/category_repository.dart';
 import 'package:phishing_quest/app/data/repositories/ranking/ranking_repository.dart';
+import 'package:phishing_quest/app/data/repositories/request_repository.dart';
 import 'package:phishing_quest/app/data/services/auth_service.dart';
 
 class DashboardController extends GetxController {
@@ -11,7 +11,9 @@ class DashboardController extends GetxController {
   final RxList<CategoryModel> categories = <CategoryModel>[].obs;
   final Rx<UserStatsModel?> stats = Rx<UserStatsModel?>(null);
   final RxBool isLoading = true.obs;
-  final RxInt userRank = 0.obs;
+
+  /// Posicao no ranking global; null para quem nao e participante.
+  final RxnInt userRank = RxnInt();
 
   @override
   void onInit() {
@@ -22,19 +24,17 @@ class DashboardController extends GetxController {
   Future<void> loadData() async {
     isLoading.value = true;
     try {
-      final categoryRepo = CategoryRepository();
       final rankingRepo = RankingRepository();
-
-      categories.value = await categoryRepo.getCategories();
-      stats.value = await rankingRepo.getUserStats(
-        authService.currentUser.value?.id ?? '',
-      );
-      userRank.value = await rankingRepo.getUserRank(
-        authService.currentUser.value?.id ?? '',
-      );
-    } catch (_) {
-      categories.value = MockData.categories;
-      stats.value = MockData.userStats;
+      categories.value = await CategoryRepository().getCategories();
+      stats.value = await rankingRepo.getMyStats();
+      final global = (await rankingRepo.getMyRanking()).global;
+      userRank.value = global?.position;
+      if (global != null) {
+        await authService.updateScore(global.score);
+      }
+    } on ApiException {
+      // O inicio mostra o que conseguiu carregar; as outras abas mostram
+      // o erro com detalhe.
     }
     isLoading.value = false;
   }

@@ -46,11 +46,28 @@ class GameFlowView extends GetView<GameFlowController> {
           );
         }
 
-        if (controller.questions.isEmpty) {
+        if (controller.loadError.value != null || controller.questions.isEmpty) {
           return Center(
-            child: Text(
-              'Nenhuma questão encontrada.',
-              style: AppTheme.textStyles.posLabel,
+            child: Padding(
+              padding: EdgeInsets.all(24.r),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    controller.loadError.value ?? 'Nenhuma questão nesta categoria ainda.',
+                    style: AppTheme.textStyles.posLabel,
+                    textAlign: TextAlign.center,
+                  ),
+                  if (controller.loadError.value != null) ...[
+                    SizedBox(height: 16.h),
+                    ElevatedButton(
+                      onPressed: controller.loadQuestions,
+                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.colors.primary),
+                      child: const Text('Tentar de novo', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ],
+              ),
             ),
           );
         }
@@ -62,7 +79,7 @@ class GameFlowView extends GetView<GameFlowController> {
               padding: EdgeInsets.symmetric(horizontal: 20.w),
               child: Obx(() => GameProgressBar(
                 progress: controller.progress,
-                label: '${controller.categoryName} • ${controller.difficulty.label}',
+                label: controller.categoryName,
               )),
             ),
             SizedBox(height: 8.h),
@@ -75,18 +92,12 @@ class GameFlowView extends GetView<GameFlowController> {
                   children: [
                     // Email Preview if available
                     Obx(() {
-                      final email = controller.currentEmail;
+                      final email = controller.currentQuestion.context;
                       if (email != null) {
                         return FadeIn(
                           child: Padding(
                             padding: EdgeInsets.only(bottom: 16.h),
-                            child: EmailPreviewCard(
-                              remetente: email.remetente,
-                              receptor: email.receptor,
-                              assunto: email.assunto,
-                              conteudo: email.conteudo,
-                              links: email.links,
-                            ),
+                            child: EmailPreviewCard(email: email),
                           ),
                         );
                       }
@@ -125,6 +136,15 @@ class GameFlowView extends GetView<GameFlowController> {
 
                         return Obx(() {
                           final isSelected = controller.selectedAnswer.value?.id == answer.id;
+                          final result = controller.currentResult.value;
+                          final isCorrectOption = result != null && result.correctAnswerId == answer.id;
+                          final isWrongPick = result != null && isSelected && !result.isCorrect;
+                          final optionColor = isCorrectOption
+                              ? AppTheme.colors.success
+                              : isWrongPick
+                                  ? AppTheme.colors.error
+                                  : AppTheme.colors.primary;
+                          final highlighted = isSelected || isCorrectOption;
                           return FadeInRight(
                             delay: Duration(milliseconds: index * 80),
                             child: GestureDetector(
@@ -134,15 +154,15 @@ class GameFlowView extends GetView<GameFlowController> {
                                 margin: EdgeInsets.only(bottom: 10.h),
                                 padding: EdgeInsets.all(14.r),
                                 decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? AppTheme.colors.primary.withOpacity(0.15)
+                                  color: highlighted
+                                      ? optionColor.withOpacity(0.15)
                                       : AppTheme.colors.backgroundCard,
                                   borderRadius: BorderRadius.circular(14.r),
                                   border: Border.all(
-                                    color: isSelected
-                                        ? AppTheme.colors.primary
+                                    color: highlighted
+                                        ? optionColor
                                         : AppTheme.colors.surfaceBorder,
-                                    width: isSelected ? 2 : 1,
+                                    width: highlighted ? 2 : 1,
                                   ),
                                 ),
                                 child: Row(
@@ -151,8 +171,8 @@ class GameFlowView extends GetView<GameFlowController> {
                                       width: 36.r,
                                       height: 36.r,
                                       decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? AppTheme.colors.primary
+                                        color: highlighted
+                                            ? optionColor
                                             : AppTheme.colors.surfaceBorder,
                                         borderRadius: BorderRadius.circular(10.r),
                                       ),
@@ -160,7 +180,7 @@ class GameFlowView extends GetView<GameFlowController> {
                                       child: Text(
                                         letter,
                                         style: AppTheme.textStyles.posLabel.copyWith(
-                                          color: isSelected ? Colors.white : AppTheme.colors.textSecondary,
+                                          color: highlighted ? Colors.white : AppTheme.colors.textSecondary,
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
@@ -170,7 +190,7 @@ class GameFlowView extends GetView<GameFlowController> {
                                       child: Text(
                                         answer.answerText,
                                         style: AppTheme.textStyles.posLabel.copyWith(
-                                          color: isSelected ? AppTheme.colors.textPrimary : null,
+                                          color: highlighted ? AppTheme.colors.textPrimary : null,
                                         ),
                                       ),
                                     ),
@@ -183,31 +203,47 @@ class GameFlowView extends GetView<GameFlowController> {
                       }).toList(),
                     )),
                     SizedBox(height: 12.h),
-                    // Justification Field
-                    FadeInUp(
-                      delay: const Duration(milliseconds: 300),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppTheme.colors.backgroundCard,
-                          borderRadius: BorderRadius.circular(14.r),
-                          border: Border.all(color: AppTheme.colors.surfaceBorder),
-                        ),
-                        child: TextField(
-                          controller: controller.justificationController,
-                          onChanged: (v) => controller.justification.value = v,
-                          maxLines: 3,
-                          style: AppTheme.textStyles.posLabel,
-                          decoration: InputDecoration(
-                            hintText: 'Justifique sua resposta (opcional)...',
-                            hintStyle: AppTheme.textStyles.label.copyWith(
-                              color: AppTheme.colors.textMuted,
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.all(14.r),
+                    // Correcao da questao
+                    Obx(() {
+                      final result = controller.currentResult.value;
+                      if (result == null) return const SizedBox.shrink();
+                      final color = result.isCorrect ? AppTheme.colors.success : AppTheme.colors.error;
+                      final points = result.isCorrect
+                          ? (result.pointsAwarded > 0 ? '+${result.pointsAwarded} pontos no ranking' : 'Questão já pontuada antes')
+                          : 'Nenhum ponto nesta questão';
+                      return FadeIn(
+                        child: Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.all(14.r),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(14.r),
+                            border: Border.all(color: color.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(result.isCorrect ? Icons.check_circle : Icons.cancel, color: color, size: 24.sp),
+                              SizedBox(width: 10.w),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      result.isCorrect ? 'Resposta correta!' : 'Resposta incorreta.',
+                                      style: AppTheme.textStyles.posLabel.copyWith(color: color, fontWeight: FontWeight.w700),
+                                    ),
+                                    Text(
+                                      points,
+                                      style: AppTheme.textStyles.label.copyWith(color: AppTheme.colors.textSecondary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                     SizedBox(height: 24.h),
                   ],
                 ),
@@ -223,11 +259,17 @@ class GameFlowView extends GetView<GameFlowController> {
               child: SafeArea(
                 top: false,
                 child: Obx(() {
+                  final isAnswered = controller.isAnswered;
                   final hasSelection = controller.selectedAnswer.value != null;
                   final isSubmitting = controller.isSubmitting.value;
+                  final onTap = isAnswered
+                      ? controller.next
+                      : (hasSelection && !isSubmitting)
+                          ? controller.submitAnswer
+                          : null;
 
                   return GestureDetector(
-                    onTap: (hasSelection && !isSubmitting) ? controller.submitAnswer : null,
+                    onTap: onTap,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       width: double.infinity,
@@ -253,7 +295,11 @@ class GameFlowView extends GetView<GameFlowController> {
                                 ),
                               )
                             : Text(
-                                controller.isLastQuestion ? 'Finalizar' : 'Confirmar',
+                                !isAnswered
+                                    ? 'Confirmar'
+                                    : controller.isLastQuestion
+                                        ? 'Ver resultado'
+                                        : 'Próxima',
                                 style: AppTheme.textStyles.subTitle.copyWith(
                                   color: hasSelection ? Colors.white : AppTheme.colors.textMuted,
                                   fontWeight: FontWeight.w700,
@@ -279,7 +325,7 @@ class GameFlowView extends GetView<GameFlowController> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
         title: Text('Sair da partida?', style: AppTheme.textStyles.subTitle),
         content: Text(
-          'Seu progresso será perdido.',
+          'As respostas já enviadas continuam valendo para o ranking.',
           style: AppTheme.textStyles.posLabel.copyWith(
             color: AppTheme.colors.textSecondary,
           ),

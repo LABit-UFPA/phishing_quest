@@ -7,9 +7,14 @@ class PhishingLinkPopup extends StatelessWidget {
   final String url;
   final VoidCallback onDismiss;
 
+  /// Pontos descontados por este clique (0 se a mensagem ja tinha sido
+  /// penalizada).
+  final int penalty;
+
   const PhishingLinkPopup({
     required this.url,
     required this.onDismiss,
+    this.penalty = 0,
     super.key,
   });
 
@@ -67,7 +72,7 @@ class PhishingLinkPopup extends StatelessWidget {
               FadeInUp(
                 delay: const Duration(milliseconds: 400),
                 child: Text(
-                  'Voce clicou em um link suspeito!',
+                  'Você clicou em um link malicioso!',
                   style: AppTheme.textStyles.title.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -91,7 +96,8 @@ class PhishingLinkPopup extends StatelessWidget {
                   child: Column(
                     children: [
                       Text(
-                        'Em um cenario real, suas credenciais poderiam ter sido roubadas ou um malware instalado no seu dispositivo.',
+                        'Em um cenário real, suas credenciais poderiam ter sido roubadas ou um malware instalado no seu dispositivo.'
+                        '${penalty > 0 ? ' Foram descontados $penalty pontos.' : ''}',
                         style: AppTheme.textStyles.posLabel.copyWith(
                           color: Colors.white.withOpacity(0.9),
                           height: 1.5,
@@ -145,7 +151,7 @@ class PhishingLinkPopup extends StatelessWidget {
                       SizedBox(width: 12.w),
                       Expanded(
                         child: Text(
-                          'Dica: Sempre verifique o dominio do link antes de clicar. Passe o mouse sobre links para ver a URL real.',
+                          'Dica: antes de clicar, compare o texto do link com o destino real e confira o domínio.',
                           style: AppTheme.textStyles.label.copyWith(
                             color: AppTheme.colors.textSecondary,
                             height: 1.4,

@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:phishing_quest/app/data/models/inbox_email.model.dart';
+import 'package:phishing_quest/app/data/models/email_content.model.dart';
+import 'package:phishing_quest/app/data/models/inbox_item.model.dart';
 import 'package:phishing_quest/app/global_ui/app_theme.dart';
+import 'package:phishing_quest/app/global_ui/components/email_preview_card.dart';
 import 'package:phishing_quest/app/global_ui/components/phishing_link_popup.dart';
 import 'package:phishing_quest/app/modules/email_sim/email_sim_controller.dart';
+import 'package:phishing_quest/app/modules/email_sim/email_sim_routes.dart';
+import 'package:phishing_quest/app/modules/email_sim/widgets/attempt_feedback_dialog.dart';
+import 'package:phishing_quest/app/modules/email_sim/widgets/decision_sheet.dart';
 
 class EmailDetailView extends GetView<EmailSimController> {
   const EmailDetailView({super.key});
@@ -14,9 +19,11 @@ class EmailDetailView extends GetView<EmailSimController> {
   @override
   Widget build(BuildContext context) {
     final args = Get.arguments as Map<String, dynamic>;
-    final emailIndex = args['emailIndex'] as int;
-    final email = controller.inboxEmails[emailIndex];
-    final isEvaluated = controller.isEmailEvaluated(email.id);
+    final item = controller.itemById(args['itemId'] as String);
+    if (item == null) {
+      return Scaffold(backgroundColor: AppTheme.colors.backgroundDark);
+    }
+    final email = item.content;
 
     return Scaffold(
       backgroundColor: AppTheme.colors.backgroundDark,
@@ -57,7 +64,7 @@ class EmailDetailView extends GetView<EmailSimController> {
                       padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 12.h),
                       color: AppTheme.colors.backgroundCard,
                       child: Text(
-                        email.assunto,
+                        email.subject,
                         style: AppTheme.textStyles.title.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -83,11 +90,11 @@ class EmailDetailView extends GetView<EmailSimController> {
                         children: [
                           CircleAvatar(
                             radius: 22.r,
-                            backgroundColor: _avatarColor(email.remetenteNome).withOpacity(0.2),
+                            backgroundColor: _avatarColor(email.senderName).withOpacity(0.2),
                             child: Text(
                               email.avatarInitial,
                               style: TextStyle(
-                                color: _avatarColor(email.remetenteNome),
+                                color: _avatarColor(email.senderName),
                                 fontWeight: FontWeight.w700,
                                 fontSize: 16.sp,
                               ),
@@ -102,14 +109,14 @@ class EmailDetailView extends GetView<EmailSimController> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        email.remetenteNome,
+                                        email.senderName,
                                         style: AppTheme.textStyles.posLabel.copyWith(
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                     ),
                                     Text(
-                                      _formatDateTime(email.receivedAt),
+                                      _formatDateTime(item.receivedAt),
                                       style: AppTheme.textStyles.prepreLabel.copyWith(
                                         color: AppTheme.colors.textMuted,
                                       ),
@@ -118,14 +125,14 @@ class EmailDetailView extends GetView<EmailSimController> {
                                 ),
                                 SizedBox(height: 2.h),
                                 Text(
-                                  email.remetente,
+                                  email.sender,
                                   style: AppTheme.textStyles.label.copyWith(
                                     color: AppTheme.colors.textSecondary,
                                   ),
                                 ),
                                 SizedBox(height: 2.h),
                                 Text(
-                                  'Para: ${email.receptor}',
+                                  'Para: ${email.recipient}',
                                   style: AppTheme.textStyles.prepreLabel.copyWith(
                                     color: AppTheme.colors.textMuted,
                                   ),
@@ -155,7 +162,7 @@ class EmailDetailView extends GetView<EmailSimController> {
                           ),
                         ],
                       ),
-                      child: _buildEmailBody(email),
+                      child: _buildEmailBody(item),
                     ),
                   ),
                   // Links section
@@ -178,7 +185,7 @@ class EmailDetailView extends GetView<EmailSimController> {
                                 Icon(Icons.link, size: 16.sp, color: AppTheme.colors.textMuted),
                                 SizedBox(width: 6.w),
                                 Text(
-                                  'Links encontrados neste email:',
+                                  'Links neste e-mail:',
                                   style: AppTheme.textStyles.label.copyWith(
                                     color: AppTheme.colors.textMuted,
                                     fontWeight: FontWeight.w600,
@@ -188,37 +195,9 @@ class EmailDetailView extends GetView<EmailSimController> {
                             ),
                             SizedBox(height: 8.h),
                             ...email.links.map((link) => Padding(
-                              padding: EdgeInsets.only(bottom: 6.h),
-                              child: GestureDetector(
-                                onTap: () => _onLinkTap(email, link),
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.colors.primary.withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(8.r),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.open_in_new, size: 14.sp, color: AppTheme.colors.primary),
-                                      SizedBox(width: 8.w),
-                                      Expanded(
-                                        child: Text(
-                                          link,
-                                          style: TextStyle(
-                                            color: AppTheme.colors.primary,
-                                            fontSize: 11.sp,
-                                            fontFamily: 'monospace',
-                                            decoration: TextDecoration.underline,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            )),
+                                  padding: EdgeInsets.only(bottom: 6.h),
+                                  child: LinkDestination(link: link, onTap: () => _onLinkTap(item, link)),
+                                )),
                           ],
                         ),
                       ),
@@ -229,132 +208,146 @@ class EmailDetailView extends GetView<EmailSimController> {
             ),
           ),
           // Bottom action
-          Container(
-            padding: EdgeInsets.all(16.r),
-            decoration: BoxDecoration(
-              color: AppTheme.colors.backgroundCard,
-              border: Border(
-                top: BorderSide(color: AppTheme.colors.surfaceBorder.withOpacity(0.3)),
+          Obx(() {
+            final isEvaluated = controller.isEvaluated(item.id);
+            final isSubmitting = controller.isSubmitting.value;
+            final enabled = !isEvaluated && !isSubmitting;
+            return Container(
+              padding: EdgeInsets.all(16.r),
+              decoration: BoxDecoration(
+                color: AppTheme.colors.backgroundCard,
+                border: Border(
+                  top: BorderSide(color: AppTheme.colors.surfaceBorder.withOpacity(0.3)),
+                ),
               ),
-            ),
-            child: SafeArea(
-              top: false,
-              child: GestureDetector(
-                onTap: isEvaluated
-                    ? null
-                    : () => controller.showVerdictSheet(Get.context!, email),
-                child: Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.symmetric(vertical: 16.h),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16.r),
-                    gradient: isEvaluated
-                        ? null
-                        : LinearGradient(colors: [
-                            AppTheme.colors.accent,
-                            AppTheme.colors.accent.withOpacity(0.8),
-                          ]),
-                    color: isEvaluated ? AppTheme.colors.surfaceBorder : null,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        isEvaluated ? Icons.check_circle : Icons.shield_rounded,
-                        color: isEvaluated ? AppTheme.colors.textMuted : Colors.white,
-                        size: 22.sp,
-                      ),
-                      SizedBox(width: 8.w),
-                      Text(
-                        isEvaluated ? 'Ja avaliado' : 'Avaliar este email',
-                        style: AppTheme.textStyles.subTitle.copyWith(
-                          color: isEvaluated ? AppTheme.colors.textMuted : Colors.white,
-                          fontWeight: FontWeight.w700,
+              child: SafeArea(
+                top: false,
+                child: GestureDetector(
+                  onTap: enabled ? () => _decide(item) : null,
+                  child: Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.symmetric(vertical: 16.h),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16.r),
+                      gradient: enabled
+                          ? LinearGradient(colors: [
+                              AppTheme.colors.accent,
+                              AppTheme.colors.accent.withOpacity(0.8),
+                            ])
+                          : null,
+                      color: enabled ? null : AppTheme.colors.surfaceBorder,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (isSubmitting)
+                          SizedBox(
+                            height: 20.h,
+                            width: 20.h,
+                            child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        else
+                          Icon(
+                            isEvaluated ? Icons.check_circle : Icons.shield_rounded,
+                            color: isEvaluated ? AppTheme.colors.textMuted : Colors.white,
+                            size: 22.sp,
+                          ),
+                        SizedBox(width: 8.w),
+                        Text(
+                          isSubmitting
+                              ? 'Registrando decisão...'
+                              : isEvaluated
+                                  ? 'Já avaliado'
+                                  : 'Avaliar este e-mail',
+                          style: AppTheme.textStyles.subTitle.copyWith(
+                            color: isEvaluated ? AppTheme.colors.textMuted : Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildEmailBody(InboxEmailModel email) {
-    if (email.links.isEmpty) {
-      return Text(
-        email.conteudo,
-        style: TextStyle(
-          color: const Color(0xFF1E293B),
-          fontSize: 13.sp,
-          height: 1.7,
-          fontFamily: 'serif',
-        ),
+  Future<void> _decide(InboxItemModel item) async {
+    final decision = await DecisionSheet.show();
+    if (decision == null) return;
+
+    final result = await controller.submitDecision(item, decision);
+    if (result == null) return;
+
+    await AttemptFeedbackDialog.show(
+      result,
+      clickedMaliciousLink: controller.maliciousClicks.contains(item.id),
+    );
+    if (Get.currentRoute == EmailSimRoutes.detail) {
+      Get.back();
+    }
+  }
+
+  TextStyle get _bodyStyle => TextStyle(
+        color: const Color(0xFF1E293B),
+        fontSize: 13.sp,
+        height: 1.7,
+        fontFamily: 'serif',
       );
+
+  /// Corpo do e-mail com os links clicaveis no lugar em que aparecem.
+  /// O texto do link e procurado no corpo; se nao estiver la, o link fica
+  /// so na lista abaixo do corpo.
+  Widget _buildEmailBody(InboxItemModel item) {
+    final email = item.content;
+    if (email.links.isEmpty) {
+      return Text(email.body, style: _bodyStyle);
     }
 
-    // Parse content to make links clickable
     final spans = <InlineSpan>[];
-    String remaining = email.conteudo;
+    String remaining = email.body;
 
     for (final link in email.links) {
-      final idx = remaining.indexOf(link);
-      if (idx >= 0) {
-        if (idx > 0) {
-          spans.add(TextSpan(
-            text: remaining.substring(0, idx),
-            style: TextStyle(
-              color: const Color(0xFF1E293B),
-              fontSize: 13.sp,
-              height: 1.7,
-              fontFamily: 'serif',
-            ),
-          ));
-        }
-        spans.add(TextSpan(
-          text: link,
-          style: TextStyle(
-            color: const Color(0xFF2563EB),
-            fontSize: 13.sp,
-            height: 1.7,
-            fontFamily: 'serif',
-            decoration: TextDecoration.underline,
-            decorationColor: const Color(0xFF2563EB),
-          ),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () => _onLinkTap(email, link),
-        ));
-        remaining = remaining.substring(idx + link.length);
+      final idx = remaining.indexOf(link.text);
+      if (idx < 0 || link.text.isEmpty) continue;
+      if (idx > 0) {
+        spans.add(TextSpan(text: remaining.substring(0, idx), style: _bodyStyle));
       }
+      spans.add(TextSpan(
+        text: link.text,
+        style: _bodyStyle.copyWith(
+          color: const Color(0xFF2563EB),
+          decoration: TextDecoration.underline,
+          decorationColor: const Color(0xFF2563EB),
+        ),
+        recognizer: TapGestureRecognizer()..onTap = () => _onLinkTap(item, link),
+      ));
+      remaining = remaining.substring(idx + link.text.length);
     }
 
     if (remaining.isNotEmpty) {
-      spans.add(TextSpan(
-        text: remaining,
-        style: TextStyle(
-          color: const Color(0xFF1E293B),
-          fontSize: 13.sp,
-          height: 1.7,
-          fontFamily: 'serif',
-        ),
-      ));
+      spans.add(TextSpan(text: remaining, style: _bodyStyle));
     }
 
-    return RichText(
-      text: TextSpan(children: spans),
-    );
+    return RichText(text: TextSpan(children: spans));
   }
 
-  void _onLinkTap(InboxEmailModel email, String url) {
-    controller.onLinkTapped(email.id, url);
+  /// O link nunca e aberto. A API diz se era malicioso: se era, o alerta
+  /// aparece e o clique desconta pontos; se nao, o jogador so e avisado
+  /// de que o ambiente e simulado, sem revelar o rotulo.
+  Future<void> _onLinkTap(InboxItemModel item, EmailLink link) async {
+    final alreadyPenalized = controller.maliciousClicks.contains(item.id);
+    final malicious = await controller.onLinkTapped(item, link);
 
-    if (email.isPhishing) {
+    if (malicious == true) {
       Get.dialog(
         PhishingLinkPopup(
-          url: url,
+          url: link.href,
+          penalty: alreadyPenalized ? 0 : EmailSimController.maliciousClickPenalty,
           onDismiss: () => Get.back(),
         ),
         barrierDismissible: false,
@@ -362,13 +355,13 @@ class EmailDetailView extends GetView<EmailSimController> {
       );
     } else {
       Get.snackbar(
-        'Link seguro',
-        'Este link parece ser legitimo.',
-        backgroundColor: AppTheme.colors.success.withOpacity(0.9),
+        'Ambiente simulado',
+        'O link não foi aberto. Destino: ${link.href}',
+        backgroundColor: AppTheme.colors.backgroundCard,
         colorText: Colors.white,
         snackPosition: SnackPosition.BOTTOM,
         margin: EdgeInsets.all(12.r),
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 3),
       );
     }
   }
