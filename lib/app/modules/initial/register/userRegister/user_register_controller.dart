@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:phishing_quest/app/data/controllers/base_controller.dart';
 import 'package:phishing_quest/app/data/repositories/register/register_repository.dart';
+import 'package:phishing_quest/app/data/repositories/request_repository.dart';
+import 'package:phishing_quest/app/data/services/auth_service.dart';
+import 'package:phishing_quest/app/data/services/session_router.dart';
 import 'package:phishing_quest/app/global_ui/components/toast.dart';
 import 'package:phishing_quest/app/modules/initial/login/login_module.dart';
 
@@ -35,42 +38,43 @@ class UserRegisterController extends BaseController {
     if (password?.isEmpty ?? true) {
       return 'Campo obrigatório';
     }
-    if (password!.length <= 4) {
-      return 'Senha deve ter mais de 4 caracteres';
+    if (password!.length < 8) {
+      return 'Senha deve ter ao menos 8 caracteres';
     }
     return null;
   }
 
-  Future onRegister() async {
+  Future<void> onRegister() async {
     if (registerFormKey.currentState?.validate() ?? false) {
       setLoading(true);
 
       try {
-        final registerRepo = RegisterRepository();
-        final register = await registerRepo.register(
-          username: usernameController.text,
+        await RegisterRepository().register(
+          username: usernameController.text.trim(),
           password: passwordController.text,
-          email: emailController.text,
+          email: emailController.text.trim(),
         );
-      
-        if (!register.valid) {
-          setLoading(false);
-          return Toast.error('Não foi possível realizar o cadastro', register.reason ?? 'Tente novamente', delayed: true);
-        }
-
-        // O backend ainda não emite token no cadastro (ver issue #10 do
-        // repo phishing-quest-api). Até que exista um token real para
-        // autenticar, redirecionamos ao login em vez de fabricar uma
-        // sessão fake — evita persistir um usuário "logado" sem
-        // credencial de verdade.
+      } on ApiException catch (e) {
         setLoading(false);
-        Toast.success('Cadastro realizado', 'Faça login para continuar', delayed: true);
-        Get.offAllNamed(LoginModule.path);
+        Toast.error('Não foi possível realizar o cadastro', e.message, delayed: true);
         return;
       } catch (_) {
+        setLoading(false);
         Toast.error('Erro', 'Não foi possível realizar o cadastro');
+        return;
       }
-      
+
+      // O cadastro nao devolve token: entra com as mesmas credenciais.
+      try {
+        await Get.find<AuthService>().login(
+          email: emailController.text.trim(),
+          password: passwordController.text,
+        );
+        await goHomeAfterLogin();
+      } catch (_) {
+        Toast.success('Cadastro realizado', 'Faça login para continuar', delayed: true);
+        Get.offAllNamed(LoginModule.path);
+      }
       setLoading(false);
     }
   }

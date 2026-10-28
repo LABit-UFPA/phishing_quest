@@ -2,21 +2,21 @@ import 'package:dio/dio.dart';
 
 abstract interface class IPqApiClient {
   Future<Response> get(
-      String url, {
-        Map<String, dynamic> headers = const {},
-      });
+    String url, {
+    Map<String, dynamic> headers = const {},
+    Map<String, dynamic>? queryParams,
+  });
 
   Future<Response> post(
-      String url,
-      String body, {
-        Map<String, dynamic> headers = const {},
-      });
+    String url,
+    dynamic body, {
+    Map<String, dynamic> headers = const {},
+    Duration? receiveTimeout,
+  });
 
   Future<Response> put(
-      String url,
-      String body, {
-        Map<String, dynamic> headers = const {},
-      });
-
-  Future<Response> postParams(String url, Map<String, dynamic> queryParams, {Map<String, dynamic> headers});
+    String url,
+    dynamic body, {
+    Map<String, dynamic> headers = const {},
+  });
 }

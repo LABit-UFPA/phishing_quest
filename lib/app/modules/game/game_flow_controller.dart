@@ -1,42 +1,58 @@
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:phishing_quest/app/data/enumerators/difficulty.enum.dart';
-import 'package:phishing_quest/app/data/mock/mock_data.dart';
 import 'package:phishing_quest/app/data/models/answer.model.dart';
 import 'package:phishing_quest/app/data/models/answer_result.model.dart';
-import 'package:phishing_quest/app/data/models/phishing_email.model.dart';
 import 'package:phishing_quest/app/data/models/question.model.dart';
 import 'package:phishing_quest/app/data/repositories/game/game_repository.dart';
 import 'package:phishing_quest/app/data/repositories/question/question_repository.dart';
+import 'package:phishing_quest/app/data/repositories/request_repository.dart';
 import 'package:phishing_quest/app/data/services/auth_service.dart';
+import 'package:phishing_quest/app/global_ui/components/toast.dart';
 
+/// Resposta dada a uma questao da partida.
+class QuizRoundAnswer {
+  final QuestionModel question;
+  final List<AnswerModel> answers;
+  final String selectedAnswerId;
+  final AnswerResultModel result;
+
+  QuizRoundAnswer({
+    required this.question,
+    required this.answers,
+    required this.selectedAnswerId,
+    required this.result,
+  });
+
+  String? get correctAnswerText => answers.firstWhereOrNull((a) => a.id == result.correctAnswerId)?.answerText;
+}
+
+/// Partida do quiz: ate [questionsPerRound] questoes sorteadas da
+/// categoria. A correcao e os pontos vem de POST /game/answer.
 class GameFlowController extends GetxController {
+  static const int questionsPerRound = 5;
+
   // Arguments
   late final String categoryId;
   late final String categoryName;
-  late final Difficulty difficulty;
 
   // State
   final RxList<QuestionModel> questions = <QuestionModel>[].obs;
   final RxMap<String, List<AnswerModel>> answersMap = <String, List<AnswerModel>>{}.obs;
-  final RxMap<String, PhishingEmailModel?> emailsMap = <String, PhishingEmailModel?>{}.obs;
 
   final RxInt currentIndex = 0.obs;
   final Rx<AnswerModel?> selectedAnswer = Rx<AnswerModel?>(null);
-  final RxString justification = ''.obs;
+  final Rx<AnswerResultModel?> currentResult = Rx<AnswerResultModel?>(null);
   final RxBool isSubmitting = false.obs;
   final RxBool isLoading = true.obs;
+  final RxnString loadError = RxnString();
 
   // Results
-  final RxList<AnswerResultModel> results = <AnswerResultModel>[].obs;
-  final RxInt totalScore = 0.obs;
-
-  final justificationController = TextEditingController();
+  final RxList<QuizRoundAnswer> roundAnswers = <QuizRoundAnswer>[].obs;
+  final RxInt roundPoints = 0.obs;
 
   QuestionModel get currentQuestion => questions[currentIndex.value];
   List<AnswerModel> get currentAnswers => answersMap[currentQuestion.id] ?? [];
-  PhishingEmailModel? get currentEmail => emailsMap[currentQuestion.id];
   bool get isLastQuestion => currentIndex.value >= questions.length - 1;
+  bool get isAnswered => currentResult.value != null;
   double get progress => questions.isEmpty ? 0.0 : (currentIndex.value + 1) / questions.length;
 
   @override
@@ -45,126 +61,72 @@ class GameFlowController extends GetxController {
     final args = Get.arguments as Map<String, dynamic>;
     categoryId = args['categoryId'] as String;
     categoryName = args['categoryName'] as String;
-    difficulty = args['difficulty'] as Difficulty;
     loadQuestions();
-  }
-
-  @override
-  void onClose() {
-    justificationController.dispose();
-    super.onClose();
   }
 
   Future<void> loadQuestions() async {
     isLoading.value = true;
+    loadError.value = null;
     try {
       final questionRepo = QuestionRepository();
-      questions.value = await questionRepo.getQuestionsByCategory(categoryId);
+      final all = await questionRepo.getQuestionsByCategory(categoryId);
+      final round = (all..shuffle()).take(questionsPerRound).toList();
 
-      // Filter by difficulty
-      questions.value = questions.where((q) => q.difficulty == difficulty).toList();
-      if (questions.isEmpty) {
-        // Fallback: use all from category
-        questions.value = await questionRepo.getQuestionsByCategory(categoryId);
+      final answers = await Future.wait(round.map((q) => questionRepo.getAnswersByQuestion(q.id)));
+      for (var i = 0; i < round.length; i++) {
+        answersMap[round[i].id] = answers[i];
       }
-
-      // Limit to 5 questions per game round
-      if (questions.length > 5) {
-        questions.value = (questions.toList()..shuffle()).take(5).toList();
-      }
-
-      // Load answers and emails for each question
-      for (final q in questions) {
-        final answers = await questionRepo.getAnswersByQuestion(q.id);
-        answersMap[q.id] = answers;
-
-        if (q.phishingEmailId != null) {
-          try {
-            final email = await questionRepo.getPhishingEmail(q.phishingEmailId!);
-            emailsMap[q.id] = email;
-          } catch (_) {}
-        }
-      }
-    } catch (e) {
-      // Fallback to mock
-      questions.value = MockData.questions
-          .where((q) => q.categoryId == categoryId)
-          .toList();
-      if (questions.isEmpty) {
-        questions.value = MockData.questions.take(5).toList();
-      }
-      for (final q in questions) {
-        answersMap[q.id] = MockData.answersByQuestion[q.id] ?? [];
-        final emailIdx = MockData.phishingEmails
-            .indexWhere((e) => e.questionId == q.id);
-        if (emailIdx >= 0) {
-          emailsMap[q.id] = MockData.phishingEmails[emailIdx];
-        }
-      }
+      questions.assignAll(round);
+    } on ApiException catch (e) {
+      loadError.value = e.message;
     }
     isLoading.value = false;
   }
 
   void selectAnswer(AnswerModel answer) {
+    if (isAnswered) return;
     selectedAnswer.value = answer;
   }
 
+  /// Envia a resposta e mostra a correcao na propria questao.
   Future<void> submitAnswer() async {
-    if (selectedAnswer.value == null) {
-      Get.snackbar('Atenção', 'Selecione uma resposta',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      return;
-    }
+    final answer = selectedAnswer.value;
+    if (answer == null || isSubmitting.value || isAnswered) return;
 
     isSubmitting.value = true;
     try {
-      final auth = Get.find<AuthService>();
-      final userId = auth.currentUser.value?.id ?? '';
-      final gameRepo = GameRepository();
-      final result = await gameRepo.submitAnswer(
-        userId: userId,
+      final result = await GameRepository().submitAnswer(
         questionId: currentQuestion.id,
-        answerId: selectedAnswer.value!.id,
-        userJustification: justification.value.isNotEmpty ? justification.value : null,
+        answerId: answer.id,
       );
-      results.add(result);
-      totalScore.value += result.points;
-    } catch (e) {
-      // Mock result
-      final isCorrect = selectedAnswer.value!.isCorrect;
-      results.add(AnswerResultModel(
-        isCorrect: isCorrect,
-        message: isCorrect ? 'Correto!' : 'Errado!',
-        aiRating: isCorrect ? 4 : 2,
-        feedback: isCorrect
-            ? 'Boa análise! Você identificou corretamente.'
-            : 'Tente prestar mais atenção nos detalhes.',
-        strengths: isCorrect ? ['Boa percepção', 'Análise correta'] : [],
-        improvements: isCorrect ? [] : ['Analisar links', 'Verificar remetente'],
-        points: isCorrect ? 15 : 5,
+      currentResult.value = result;
+      roundAnswers.add(QuizRoundAnswer(
+        question: currentQuestion,
+        answers: currentAnswers,
+        selectedAnswerId: answer.id,
+        result: result,
       ));
-      totalScore.value += (isCorrect ? 15 : 5);
+      roundPoints.value += result.pointsAwarded;
+      await Get.find<AuthService>().updateScore(result.totalScore);
+    } on ApiException catch (e) {
+      Toast.error('Resposta não enviada', e.message);
     }
     isSubmitting.value = false;
-
-    if (isLastQuestion) {
-      Get.toNamed('/game/result', arguments: {
-        'results': results.toList(),
-        'questions': questions.toList(),
-        'totalScore': totalScore.value,
-        'categoryName': categoryName,
-        'difficulty': difficulty,
-      });
-    } else {
-      nextQuestion();
-    }
   }
 
-  void nextQuestion() {
+  void next() {
+    if (!isAnswered) return;
+    if (isLastQuestion) {
+      Get.offNamed('/game/result', arguments: {
+        'answers': roundAnswers.toList(),
+        'roundPoints': roundPoints.value,
+        'categoryId': categoryId,
+        'categoryName': categoryName,
+      });
+      return;
+    }
     selectedAnswer.value = null;
-    justification.value = '';
-    justificationController.clear();
+    currentResult.value = null;
     currentIndex.value++;
   }
 }

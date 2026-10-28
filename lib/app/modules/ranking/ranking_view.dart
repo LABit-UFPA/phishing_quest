@@ -9,6 +9,8 @@ import 'package:phishing_quest/app/modules/ranking/ranking_controller.dart';
 class RankingView extends StatelessWidget {
   const RankingView({super.key});
 
+  int _listOffset(RankingController controller) => controller.ranking.length >= 3 ? 3 : 0;
+
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(RankingController());
@@ -35,14 +37,43 @@ class RankingView extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Ranking Global', style: AppTheme.textStyles.display),
+                          Text(
+                            controller.scope.value == RankingScope.cohort ? 'Ranking da Turma' : 'Ranking Global',
+                            style: AppTheme.textStyles.display,
+                          ),
                           SizedBox(height: 4.h),
                           Text(
-                            'Os melhores caçadores de phishing',
+                            'Pontos dos acertos no quiz',
                             style: AppTheme.textStyles.posLabel.copyWith(
                               color: AppTheme.colors.textSecondary,
                             ),
                           ),
+                          if (controller.hasCohort) ...[
+                            SizedBox(height: 12.h),
+                            SegmentedButton<RankingScope>(
+                              segments: const [
+                                ButtonSegment(value: RankingScope.global, label: Text('Global')),
+                                ButtonSegment(value: RankingScope.cohort, label: Text('Minha turma')),
+                              ],
+                              selected: {controller.scope.value},
+                              onSelectionChanged: (value) => controller.setScope(value.first),
+                              showSelectedIcon: false,
+                            ),
+                          ],
+                          if (controller.loadError.value != null) ...[
+                            SizedBox(height: 12.h),
+                            Text(
+                              controller.loadError.value!,
+                              style: AppTheme.textStyles.label.copyWith(color: AppTheme.colors.error),
+                            ),
+                          ],
+                          if (controller.loadError.value == null && controller.ranking.isEmpty) ...[
+                            SizedBox(height: 24.h),
+                            Text(
+                              'Ninguém pontuou ainda. Acerte questões do quiz para aparecer aqui.',
+                              style: AppTheme.textStyles.label.copyWith(color: AppTheme.colors.textMuted),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -60,7 +91,7 @@ class RankingView extends StatelessWidget {
                     ),
                   ),
                 // My rank card
-                if (controller.myRank.value != null)
+                if (controller.myRank != null)
                   SliverToBoxAdapter(
                     child: FadeInUp(
                       delay: const Duration(milliseconds: 250),
@@ -88,7 +119,7 @@ class RankingView extends StatelessWidget {
                             ),
                             const Spacer(),
                             Text(
-                              '#${controller.myRank.value!.position}',
+                              '#${controller.myRank!.position}',
                               style: AppTheme.textStyles.title.copyWith(
                                 color: AppTheme.colors.primary,
                                 fontWeight: FontWeight.w800,
@@ -96,7 +127,7 @@ class RankingView extends StatelessWidget {
                             ),
                             SizedBox(width: 16.w),
                             Text(
-                              '${controller.myRank.value!.score} pts',
+                              '${controller.myRank!.score} pts',
                               style: AppTheme.textStyles.posLabel.copyWith(
                                 color: AppTheme.colors.accent,
                                 fontWeight: FontWeight.w700,
@@ -107,13 +138,13 @@ class RankingView extends StatelessWidget {
                       ),
                     ),
                   ),
-                // List (4th place onwards)
+                // List (4th place onwards; everyone when there is no podium)
                 SliverPadding(
                   padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        final realIndex = index + 3;
+                        final realIndex = index + _listOffset(controller);
                         if (realIndex >= controller.ranking.length) return null;
                         final entry = controller.ranking[realIndex];
 
@@ -122,7 +153,7 @@ class RankingView extends StatelessWidget {
                           child: _RankingTile(entry: entry),
                         );
                       },
-                      childCount: (controller.ranking.length - 3).clamp(0, 999),
+                      childCount: (controller.ranking.length - _listOffset(controller)).clamp(0, 999),
                     ),
                   ),
                 ),
@@ -302,7 +333,7 @@ class _RankingTile extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${entry.totalCorrect}/${entry.totalAnswered} acertos • ${(entry.accuracy * 100).toInt()}%',
+                  '${entry.score} pontos',
                   style: AppTheme.textStyles.label.copyWith(
                     color: AppTheme.colors.textSecondary,
                     fontSize: 11.sp,

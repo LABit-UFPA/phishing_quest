@@ -4,29 +4,19 @@ import 'package:phishing_quest/app/data/repositories/request_repository.dart';
 final class RegisterRepository extends RequestRepository implements IRegisterRepository {
   static const String registerAuth = '/users/register';
 
+  /// POST /users/register. A API exige senha com ao menos 8 caracteres
+  /// e responde 400 com o motivo quando recusa o cadastro.
   @override
-  Future register(
-      {required String username,
-      required String email,
-      required String password}) async {
-    final url = apiHelpers.buildUrl(url: registerAuth);
-
-    final bodyRegister = {
+  Future<void> register({
+    required String username,
+    required String email,
+    required String password,
+  }) async {
+    final response = await client.post(url(registerAuth), {
       'username': username,
       'password': password,
-      'email': email 
-    };
-
-    try {
-      final response = await client.post(url, bodyRegister);
-      final invalidResponse = isValidResponse(response);
-      if (!invalidResponse.valid) {
-        return invalidResponse;
-      }
-
-      return (valid: true, reason: null, data: null);
-    } catch (_) {
-      return (valid: false, reason: 'Erro interno durante a requisição', data: null);
-    }
+      'email': email,
+    });
+    dataOrThrow(response);
   }
 }

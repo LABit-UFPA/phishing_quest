@@ -10,4 +10,7 @@ enum StorageKeys {
 
   /// Used to store logged user profile information
   PROFILE_INFO,
+
+  /// Telemetry events not yet accepted by the API, resent on the next flush
+  PENDING_TELEMETRY,
 }

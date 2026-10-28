@@ -1,10 +1,12 @@
 import 'package:get/get.dart';
 import 'package:phishing_quest/app/modules/admin/admin_controller.dart';
 import 'package:phishing_quest/app/modules/admin/admin_view.dart';
+import 'package:phishing_quest/app/modules/consent/consent_module.dart';
 import 'package:phishing_quest/app/modules/email_sim/email_sim_binding.dart';
 import 'package:phishing_quest/app/modules/email_sim/email_detail_view.dart';
 import 'package:phishing_quest/app/modules/email_sim/email_inbox_view.dart';
 import 'package:phishing_quest/app/modules/email_sim/email_sim_result_view.dart';
+import 'package:phishing_quest/app/modules/email_sim/email_sim_routes.dart';
 import 'package:phishing_quest/app/modules/game/game_binding.dart';
 import 'package:phishing_quest/app/modules/game/game_flow_view.dart';
 import 'package:phishing_quest/app/modules/game/game_result_view.dart';
@@ -25,6 +27,9 @@ class AppPages {
     LoginModule.page,
     UserRegisterModule.page,
 
+    // Termo de consentimento da pesquisa
+    ConsentModule.page,
+
     // Main (shell com BottomNav) — requer autenticação
     MainShellModule.page,
 
@@ -43,23 +48,23 @@ class AppPages {
 
     // Email Simulation — tela fullscreen fora do shell
     GetPage(
-      name: '/email-sim',
+      name: EmailSimRoutes.inbox,
       page: () => const EmailInboxView(),
       binding: EmailSimBinding(),
       middlewares: [AuthMiddleware()],
     ),
     GetPage(
-      name: '/email-sim/detail',
+      name: EmailSimRoutes.detail,
       page: () => const EmailDetailView(),
       middlewares: [AuthMiddleware()],
     ),
     GetPage(
-      name: '/email-sim/result',
+      name: EmailSimRoutes.result,
       page: () => const EmailSimResultView(),
       middlewares: [AuthMiddleware()],
     ),
 
-    // Admin — requer role admin
+    // Curadoria — requer role pesquisador ou admin
     GetPage(
       name: '/admin',
       page: () => const AdminView(),

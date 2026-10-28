@@ -1,27 +1,31 @@
-import 'package:phishing_quest/app/data/mock/mock_data.dart';
 import 'package:phishing_quest/app/data/models/ranking_entry.model.dart';
 import 'package:phishing_quest/app/data/models/user_stats.model.dart';
 import 'package:phishing_quest/app/data/repositories/ranking/ranking_repository.interface.dart';
+import 'package:phishing_quest/app/data/repositories/request_repository.dart';
 
-class RankingRepository implements IRankingRepository {
+final class RankingRepository extends RequestRepository implements IRankingRepository {
+  /// GET /rankings, global ou da turma (?cohortId=).
   @override
-  Future<List<RankingEntryModel>> getGlobalRanking() async {
-    // TODO: Replace with API call when endpoint is available
-    await Future.delayed(const Duration(milliseconds: 500));
-    return MockData.ranking;
+  Future<List<RankingEntryModel>> getRanking({String? cohortId, int limit = 50}) async {
+    final data = dataOrThrow(await client.get(url('/rankings'), queryParams: {
+      'limit': limit,
+      if (cohortId != null) 'cohortId': cohortId,
+    }));
+    final list = data is Map ? data['ranking'] as List? ?? const [] : const [];
+    return list.map((e) => RankingEntryModel.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// GET /me/ranking: posicao no ranking global e no da turma.
   @override
-  Future<int> getUserRank(String userId) async {
-    final ranking = await getGlobalRanking();
-    final entry = ranking.where((e) => e.userId == userId).firstOrNull;
-    return entry?.position ?? ranking.length + 1;
+  Future<MyRankingModel> getMyRanking() async {
+    final data = dataOrThrow(await client.get(url('/me/ranking')));
+    return MyRankingModel.fromJson(data as Map<String, dynamic>);
   }
 
+  /// GET /me/stats: d', c, taxas e acuracia por pista.
   @override
-  Future<UserStatsModel> getUserStats(String userId) async {
-    // TODO: Replace with API call when endpoint is available
-    await Future.delayed(const Duration(milliseconds: 300));
-    return MockData.userStats;
+  Future<UserStatsModel> getMyStats() async {
+    final data = dataOrThrow(await client.get(url('/me/stats')));
+    return UserStatsModel.fromJson(data as Map<String, dynamic>);
   }
 }

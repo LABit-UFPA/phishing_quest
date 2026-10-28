@@ -1,17 +1,18 @@
 import 'package:get/get.dart';
-import 'package:phishing_quest/app/data/enumerators/difficulty.enum.dart';
-import 'package:phishing_quest/app/data/mock/mock_data.dart';
 import 'package:phishing_quest/app/data/models/category.model.dart';
 import 'package:phishing_quest/app/data/repositories/category/category_repository.dart';
+import 'package:phishing_quest/app/data/repositories/request_repository.dart';
+import 'package:phishing_quest/app/data/services/session_router.dart';
+import 'package:phishing_quest/app/global_ui/components/toast.dart';
 
 enum GameMode { quiz, emailSim }
 
 class PlayController extends GetxController {
   final RxList<CategoryModel> categories = <CategoryModel>[].obs;
   final Rx<CategoryModel?> selectedCategory = Rx<CategoryModel?>(null);
-  final Rx<Difficulty> selectedDifficulty = Difficulty.medium.obs;
   final Rx<GameMode?> selectedMode = Rx<GameMode?>(null);
   final RxBool isLoading = true.obs;
+  final RxBool isOpeningInbox = false.obs;
 
   @override
   void onInit() {
@@ -22,10 +23,9 @@ class PlayController extends GetxController {
   Future<void> loadCategories() async {
     isLoading.value = true;
     try {
-      final repo = CategoryRepository();
-      categories.value = await repo.getCategories();
-    } catch (_) {
-      categories.value = MockData.categories;
+      categories.value = await CategoryRepository().getCategories();
+    } on ApiException catch (e) {
+      Toast.error('Categorias indisponíveis', e.message);
     }
     isLoading.value = false;
   }
@@ -40,10 +40,6 @@ class PlayController extends GetxController {
     selectedCategory.value = category;
   }
 
-  void selectDifficulty(Difficulty difficulty) {
-    selectedDifficulty.value = difficulty;
-  }
-
   void startGame() {
     if (selectedMode.value == GameMode.emailSim) {
       startEmailSim();
@@ -53,13 +49,15 @@ class PlayController extends GetxController {
         arguments: {
           'categoryId': selectedCategory.value!.id,
           'categoryName': selectedCategory.value!.categoryName,
-          'difficulty': selectedDifficulty.value,
         },
       );
     }
   }
 
-  void startEmailSim() {
-    Get.toNamed('/email-sim');
+  Future<void> startEmailSim() async {
+    if (isOpeningInbox.value) return;
+    isOpeningInbox.value = true;
+    await openInbox();
+    isOpeningInbox.value = false;
   }
 }

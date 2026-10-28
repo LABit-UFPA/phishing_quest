@@ -18,13 +18,13 @@ class MainShellView extends GetView<MainShellController> {
     final authService = Get.find<AuthService>();
 
     return Obx(() {
-      final isAdmin = authService.isAdmin;
+      final canCurate = authService.canCurate;
       final pages = <Widget>[
         const DashboardView(),
         const PlayView(),
         const RankingView(),
         const ProfileView(),
-        if (isAdmin) const AdminView(),
+        if (canCurate) const AdminView(),
       ];
 
       final items = <BottomNavigationBarItem>[
@@ -32,7 +32,7 @@ class MainShellView extends GetView<MainShellController> {
         _buildNavItem(Icons.play_circle_fill_rounded, 'Jogar', 1),
         _buildNavItem(Icons.emoji_events_rounded, 'Ranking', 2),
         _buildNavItem(Icons.person_rounded, 'Perfil', 3),
-        if (isAdmin) _buildNavItem(Icons.admin_panel_settings_rounded, 'Admin', 4),
+        if (canCurate) _buildNavItem(Icons.fact_check_rounded, 'Curadoria', 4),
       ];
 
       // Ensure index is within bounds

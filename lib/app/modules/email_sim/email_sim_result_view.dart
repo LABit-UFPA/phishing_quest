@@ -3,26 +3,28 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:phishing_quest/app/data/models/inbox_email.model.dart';
 import 'package:phishing_quest/app/global_ui/app_theme.dart';
+import 'package:phishing_quest/app/global_ui/components/rating_stars.dart';
 import 'package:phishing_quest/app/global_ui/components/score_badge.dart';
+import 'package:phishing_quest/app/modules/email_sim/email_sim_controller.dart';
+import 'package:phishing_quest/app/modules/main_shell/main_shell_module.dart';
 
-class EmailSimResultView extends StatelessWidget {
+/// Resumo da rodada. Mostra so o que o jogador ja viu no feedback de
+/// cada decisao: acerto, cliques e, na condicao formativa, a nota da
+/// justificativa.
+class EmailSimResultView extends GetView<EmailSimController> {
   const EmailSimResultView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final args = Get.arguments as Map<String, dynamic>;
-    final emails = args['emails'] as List<InboxEmailModel>;
-    final verdictCorrect = args['verdictCorrect'] as Map<String, bool>;
-    final clickedLinks = args['clickedLinks'] as Map<String, bool>;
-    final totalScore = args['totalScore'] as int;
-    final verdicts = args['verdicts'] as Map<String, bool>;
+    final items = controller.inbox.where((i) => controller.isEvaluated(i.id)).toList();
+    final results = controller.results;
+    final totalScore = controller.totalScore.value;
 
-    final correctCount = verdictCorrect.values.where((v) => v).length;
-    final evaluatedCount = verdictCorrect.length;
+    final correctCount = results.values.where((r) => r.isCorrect).length;
+    final evaluatedCount = results.length;
     final accuracy = evaluatedCount == 0 ? 0.0 : correctCount / evaluatedCount;
-    final linksClicked = clickedLinks.length;
+    final linksClicked = controller.maliciousClicks.length;
 
     return Scaffold(
       backgroundColor: AppTheme.colors.backgroundDark,
@@ -34,7 +36,7 @@ class EmailSimResultView extends StatelessWidget {
               // Header
               FadeInDown(
                 child: Text(
-                  'Resultado da Simulação',
+                  'Resultado da rodada',
                   style: AppTheme.textStyles.display,
                   textAlign: TextAlign.center,
                 ),
@@ -43,7 +45,7 @@ class EmailSimResultView extends StatelessWidget {
               FadeInDown(
                 delay: const Duration(milliseconds: 100),
                 child: Text(
-                  'Identificação de Phishing',
+                  'Caixa de entrada simulada',
                   style: AppTheme.textStyles.posLabel.copyWith(
                     color: AppTheme.colors.textSecondary,
                   ),
@@ -83,7 +85,7 @@ class EmailSimResultView extends StatelessWidget {
                         icon: Icons.link_off,
                         color: AppTheme.colors.error,
                         value: '$linksClicked',
-                        label: 'Links',
+                        label: 'Links maliciosos',
                       ),
                     ),
                   ],
@@ -178,21 +180,20 @@ class EmailSimResultView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Detalhes por Email',
+                      'Detalhes por e-mail',
                       style: AppTheme.textStyles.subTitle.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     SizedBox(height: 12.h),
-                    ...emails.asMap().entries.map((entry) {
-                      final i = entry.key;
-                      final email = entry.value;
-                      final wasCorrect = verdictCorrect[email.id] ?? false;
-                      final didClickLink = clickedLinks.containsKey(email.id);
-                      final userSaidPhishing = verdicts[email.id];
-
-                      int points = wasCorrect ? 15 : 5;
-                      if (didClickLink) points -= 5;
+                    ...items.map((item) {
+                      final email = item.content;
+                      final result = results[item.id]!;
+                      final wasCorrect = result.isCorrect;
+                      final didClickLink = controller.maliciousClicks.contains(item.id);
+                      final userSaidPhishing = controller.verdicts[item.id];
+                      final points = controller.pointsFor(item.id);
+                      final evaluation = result.evaluation;
 
                       return Container(
                         margin: EdgeInsets.only(bottom: 12.h),
@@ -222,13 +223,13 @@ class EmailSimResultView extends StatelessWidget {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        email.remetenteNome,
+                                        email.senderName,
                                         style: AppTheme.textStyles.posLabel.copyWith(
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       Text(
-                                        email.assunto,
+                                        email.subject,
                                         style: AppTheme.textStyles.label.copyWith(
                                           color: AppTheme.colors.textSecondary,
                                           fontSize: 12.sp,
@@ -251,24 +252,6 @@ class EmailSimResultView extends StatelessWidget {
                             SizedBox(height: 8.h),
                             Row(
                               children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                                  decoration: BoxDecoration(
-                                    color: email.isPhishing
-                                        ? AppTheme.colors.error.withOpacity(0.1)
-                                        : AppTheme.colors.success.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(6.r),
-                                  ),
-                                  child: Text(
-                                    email.isPhishing ? 'PHISHING' : 'LEGÍTIMO',
-                                    style: AppTheme.textStyles.label.copyWith(
-                                      fontSize: 10.sp,
-                                      fontWeight: FontWeight.w700,
-                                      color: email.isPhishing ? AppTheme.colors.error : AppTheme.colors.success,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: 8.w),
                                 if (userSaidPhishing != null)
                                   Container(
                                     padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
@@ -288,43 +271,15 @@ class EmailSimResultView extends StatelessWidget {
                                   SizedBox(width: 8.w),
                                   Icon(Icons.link_off, color: AppTheme.colors.error, size: 14.sp),
                                 ],
+                                const Spacer(),
+                                if (result.isFormative && evaluation != null)
+                                  RatingStars(rating: evaluation.score, starSize: 14.sp),
                               ],
-                            ),
-                            SizedBox(height: 10.h),
-                            Container(
-                              width: double.infinity,
-                              padding: EdgeInsets.all(10.r),
-                              decoration: BoxDecoration(
-                                color: AppTheme.colors.backgroundDark,
-                                borderRadius: BorderRadius.circular(10.r),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Explicação:',
-                                    style: AppTheme.textStyles.label.copyWith(
-                                      color: AppTheme.colors.primary,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 11.sp,
-                                    ),
-                                  ),
-                                  SizedBox(height: 4.h),
-                                  Text(
-                                    email.explicacao,
-                                    style: AppTheme.textStyles.label.copyWith(
-                                      color: AppTheme.colors.textSecondary,
-                                      fontSize: 11.sp,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ],
-                              ),
                             ),
                           ],
                         ),
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
               ),
@@ -336,7 +291,7 @@ class EmailSimResultView extends StatelessWidget {
                   children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => Get.offAllNamed('/main'),
+                        onTap: () => Get.offAllNamed(MainShellModule.path),
                         child: Container(
                           padding: EdgeInsets.symmetric(vertical: 16.h),
                           decoration: BoxDecoration(
@@ -359,9 +314,7 @@ class EmailSimResultView extends StatelessWidget {
                     Expanded(
                       flex: 2,
                       child: GestureDetector(
-                        onTap: () {
-                          Get.offAllNamed('/play');
-                        },
+                        onTap: controller.nextRound,
                         child: Container(
                           padding: EdgeInsets.symmetric(vertical: 16.h),
                           decoration: BoxDecoration(
@@ -375,7 +328,7 @@ class EmailSimResultView extends StatelessWidget {
                           ),
                           child: Center(
                             child: Text(
-                              'Jogar Novamente',
+                              'Nova rodada',
                               style: AppTheme.textStyles.posLabel.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,

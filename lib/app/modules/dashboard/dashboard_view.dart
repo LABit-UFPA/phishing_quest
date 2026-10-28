@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:phishing_quest/app/data/models/category.model.dart';
 import 'package:phishing_quest/app/data/services/auth_service.dart';
 import 'package:phishing_quest/app/global_ui/app_theme.dart';
 import 'package:phishing_quest/app/global_ui/components/game_card.dart';
@@ -112,10 +113,10 @@ class DashboardView extends StatelessWidget {
               ],
             ),
           ),
-          ScoreBadge(
-            score: authService.currentUser.value?.score ?? 0,
-            size: 60.r,
-          ),
+          Obx(() => ScoreBadge(
+                score: authService.currentUser.value?.totalScore ?? 0,
+                size: 60.r,
+              )),
         ],
       ),
     );
@@ -129,21 +130,21 @@ class DashboardView extends StatelessWidget {
         children: [
           _buildStatCard(
             icon: Icons.check_circle,
-            value: '${stats?.accuracy.toInt() ?? 0}%',
-            label: 'Acertos',
+            value: '${((stats?.accuracy ?? 0) * 100).round()}%',
+            label: 'Acurácia',
             color: AppTheme.colors.success,
           ),
           SizedBox(width: 12.w),
           _buildStatCard(
-            icon: Icons.quiz,
-            value: '${stats?.totalAnswered ?? 0}',
-            label: 'Questões',
+            icon: Icons.mail_outline,
+            value: '${stats?.totalAttempts ?? 0}',
+            label: 'Decisões',
             color: AppTheme.colors.primary,
           ),
           SizedBox(width: 12.w),
           _buildStatCard(
             icon: Icons.leaderboard,
-            value: '#${controller.userRank.value}',
+            value: controller.userRank.value != null ? '#${controller.userRank.value}' : '-',
             label: 'Ranking',
             color: AppTheme.colors.accent,
           ),
@@ -246,7 +247,7 @@ class DashboardView extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Escolha uma categoria e comece!',
+                    'Quiz ou caixa de entrada simulada',
                     style: AppTheme.textStyles.label.copyWith(
                       color: Colors.white.withOpacity(0.8),
                     ),
@@ -265,7 +266,7 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryCard(dynamic category) {
+  Widget _buildCategoryCard(CategoryModel category) {
     final icons = {'🏢': Icons.business, '🧠': Icons.psychology, '🔒': Icons.lock};
     final iconData = icons[category.icon] ?? Icons.category;
 
@@ -307,20 +308,7 @@ class DashboardView extends StatelessWidget {
               ],
             ),
           ),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-            decoration: BoxDecoration(
-              color: AppTheme.colors.accent.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10.r),
-            ),
-            child: Text(
-              '${category.questionCount}',
-              style: AppTheme.textStyles.label.copyWith(
-                color: AppTheme.colors.accent,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
+          Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.colors.textMuted, size: 16.sp),
         ],
       ),
     );

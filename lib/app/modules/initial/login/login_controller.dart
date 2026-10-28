@@ -2,8 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:phishing_quest/app/data/controllers/base_controller.dart';
-import 'package:phishing_quest/app/data/repositories/login/login_repository.dart';
+import 'package:phishing_quest/app/data/repositories/request_repository.dart';
 import 'package:phishing_quest/app/data/services/auth_service.dart';
+import 'package:phishing_quest/app/data/services/session_router.dart';
 import 'package:phishing_quest/app/global_ui/components/toast.dart';
 import 'package:phishing_quest/app/modules/initial/register/userRegister/user_register_module.dart';
 
@@ -12,6 +13,7 @@ class LoginController extends BaseController {
   final TextEditingController passController = TextEditingController();
   final GlobalKey<FormState> loginFormKey = GlobalKey<FormState>();
 
+  @override
   void onInit() {
     super.onInit();
 
@@ -52,32 +54,13 @@ class LoginController extends BaseController {
       setLoading(true);
 
       try {
-        final loginRepo = LoginRepository();
-        final result = await loginRepo.login(
-          email: emailController.text,
+        await Get.find<AuthService>().login(
+          email: emailController.text.trim(),
           password: passController.text,
         );
-
-        if (!result.valid) {
-          setLoading(false);
-          Toast.error('Erro no login', result.reason ?? 'Tente novamente');
-          return;
-        }
-
-        // Save token and user data
-        final authService = Get.find<AuthService>();
-        await authService.login(
-          token: 'mock-token-${DateTime.now().millisecondsSinceEpoch}',
-          userData: {
-            'id': 'u-current',
-            'username': emailController.text.split('@').first,
-            'email': emailController.text,
-            'role': 'player',
-            'score': 0,
-          },
-        );
-
-        Get.offAllNamed('/main');
+        await goHomeAfterLogin();
+      } on ApiException catch (e) {
+        Toast.error('Erro no login', e.message);
       } catch (_) {
         Toast.error('Erro', 'Não foi possível realizar o login');
       }
